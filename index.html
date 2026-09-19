@@ -141,10 +141,12 @@
   }
   .text-input:focus{outline:none; border-color:var(--brass);}
 
-  .player-list{list-style:none; padding:0; margin:0 0 8px; display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto;}
-  .player-list li{display:flex; justify-content:space-between; align-items:center; background:var(--surface-2); padding:9px 12px; border-radius:8px; font-size:.95rem;}
+  .player-list{list-style:none; padding:0; margin:0 0 8px; display:flex; flex-direction:column; gap:6px; max-height:280px; overflow-y:auto;}
+  .player-list li{display:flex; justify-content:space-between; align-items:center; background:var(--surface-2); padding:4px 6px 4px 12px; border-radius:8px; font-size:.95rem;}
   .player-list li.empty{color:var(--muted); background:transparent; padding-left:0; font-style:italic;}
-  .chip-x{background:none; border:none; color:var(--muted); font-size:1.15rem; cursor:pointer; line-height:1; padding:0 4px;}
+  .player-name-input{flex:1; min-width:0; border:none; background:transparent; color:var(--ink); font-family:var(--font-body); font-size:.95rem; padding:8px 4px; border-radius:6px;}
+  .player-name-input:focus{outline:none; background:var(--surface); box-shadow:0 0 0 1px var(--brass);}
+  .chip-x{background:none; border:none; color:var(--muted); font-size:1.15rem; cursor:pointer; line-height:1; padding:0 6px; flex-shrink:0;}
   .chip-x:hover{color:var(--rust);}
 
   .link-btn{background:none; border:none; color:var(--muted); font-size:.8rem; text-decoration:underline; cursor:pointer; padding:0; margin:0 0 18px;}
@@ -278,6 +280,45 @@
     {a:"Subconscious", b:"Unconscious Mind", difficulty:"easy"},
     {a:"Amygdala", b:"Hippocampus", difficulty:"easy"},
     {a:"CBT", b:"Psychoanalysis", difficulty:"easy"},
+    {a:"Conscious", b:"Subconscious", difficulty:"easy"},
+    {a:"Habit", b:"Addiction", difficulty:"easy"},
+    {a:"Motivation", b:"Willpower", difficulty:"easy"},
+    {a:"Memory", b:"Recall", difficulty:"easy"},
+    {a:"Trust", b:"Loyalty", difficulty:"easy"},
+    {a:"Anger", b:"Frustration", difficulty:"easy"},
+    {a:"Confidence", b:"Arrogance", difficulty:"easy"},
+    {a:"Boundaries", b:"Rules", difficulty:"easy"},
+    {a:"Gaslighting", b:"Manipulation", difficulty:"easy"},
+    {a:"Sympathy", b:"Compassion", difficulty:"hard"},
+    {a:"Grief", b:"Mourning", difficulty:"hard"},
+    {a:"Anxiety", b:"Panic Attack", difficulty:"hard"},
+    {a:"Codependency", b:"Attachment Style", difficulty:"hard"},
+    {a:"Rumination", b:"Overthinking", difficulty:"hard"},
+    {a:"Dissociation", b:"Zoning Out", difficulty:"hard"},
+    {a:"Narcissism", b:"Self-Confidence", difficulty:"hard"},
+    {a:"Validation", b:"Approval", difficulty:"hard"},
+    {a:"Resilience", b:"Toughness", difficulty:"hard"},
+    {a:"Emotional Regulation", b:"Self-Control", difficulty:"hard"},
+    {a:"Ego", b:"Superego", difficulty:"easy"},
+    {a:"Fixed Mindset", b:"Growth Mindset", difficulty:"easy"},
+    {a:"Left Brain", b:"Right Brain", difficulty:"easy"},
+    {a:"Long-Term Memory", b:"Short-Term Memory", difficulty:"easy"},
+    {a:"Sleep", b:"Rest", difficulty:"easy"},
+    {a:"Stress", b:"Pressure", difficulty:"easy"},
+    {a:"Jealousy", b:"Envy", difficulty:"easy"},
+    {a:"Guilt", b:"Shame", difficulty:"easy"},
+    {a:"Love Language", b:"Attachment Style", difficulty:"easy"},
+    {a:"Small Talk", b:"Social Anxiety", difficulty:"easy"},
+    {a:"Bystander Effect", b:"Diffusion of Responsibility", difficulty:"hard"},
+    {a:"Social Anxiety", b:"Introversion", difficulty:"hard"},
+    {a:"Avoidant Attachment", b:"Anxious Attachment", difficulty:"hard"},
+    {a:"Toxic Positivity", b:"Optimism", difficulty:"hard"},
+    {a:"Trauma Response", b:"PTSD", difficulty:"hard"},
+    {a:"Self-Sabotage", b:"Self-Doubt", difficulty:"hard"},
+    {a:"Cognitive Distortion", b:"Negative Thinking", difficulty:"hard"},
+    {a:"Love Bombing", b:"Grand Gesture", difficulty:"hard"},
+    {a:"Emotional Intelligence", b:"Empathy", difficulty:"hard"},
+    {a:"Compassion Fatigue", b:"Burnout", difficulty:"hard"},
   ];
 
   // ---------- State ----------
@@ -343,16 +384,31 @@
   }
 
   // ---------- Setup actions ----------
-  function goSetup(){ state.screen='setup'; render(); }
-  function addPlayerFromInput(){
-    const input=document.getElementById('nameInput');
-    if(!input) return;
-    const name=input.value.trim();
-    if(!name || state.setupPlayers.length>=16) return;
-    state.setupPlayers.push({id:playerIdCounter++, name});
+  function goSetup(){
+    // Start with a handful of default "Player N" slots so the room can just
+    // pick a headcount first and rename people afterward if they want to.
+    if(state.setupPlayers.length===0){
+      for(let i=1;i<=5;i++) state.setupPlayers.push({id:playerIdCounter++, name:`Player ${i}`});
+    }
+    state.screen='setup';
     render();
-    const newInput=document.getElementById('nameInput');
-    if(newInput) newInput.focus();
+  }
+  function changePlayerCount(delta){
+    const current = state.setupPlayers.length;
+    const target = Math.max(0, Math.min(16, current+delta));
+    if(target>current){
+      for(let i=current;i<target;i++){
+        state.setupPlayers.push({id:playerIdCounter++, name:`Player ${i+1}`});
+      }
+    } else if(target<current){
+      state.setupPlayers = state.setupPlayers.slice(0, target);
+    }
+    render();
+  }
+  function renamePlayer(id, name){
+    const p = state.setupPlayers.find(p=>p.id===id);
+    if(p) p.name = name;
+    // No render() here on purpose — re-rendering while typing would steal focus/cursor.
   }
   function removeSetupPlayer(id){
     state.setupPlayers = state.setupPlayers.filter(p=>p.id!==id);
@@ -480,13 +536,17 @@
     return `
       <p class="eyebrow-line">New session</p>
       <h2 class="section-title">Who's in the room?</h2>
-      <p class="hint-inline">Works from 3 — the sweet spot is 5 to 8.</p>
-      <div class="add-row">
-        <input id="nameInput" class="text-input" type="text" placeholder="Add a name" onkeydown="if(event.key==='Enter'){addPlayerFromInput();}">
-        <button class="btn small primary" onclick="addPlayerFromInput()">Add</button>
+      <p class="hint-inline">Works from 3 — the sweet spot is 5 to 8. Rename anyone below whenever you like.</p>
+      <div class="config-row">
+        <span>Number of players</span>
+        <div class="stepper">
+          <button onclick="changePlayerCount(-1)" ${n<=0?'disabled':''} aria-label="Fewer players">−</button>
+          <span>${n}</span>
+          <button onclick="changePlayerCount(1)" ${n>=16?'disabled':''} aria-label="More players">+</button>
+        </div>
       </div>
       <ul class="player-list">
-        ${state.setupPlayers.map(p=>`<li>${escapeHtml(p.name)} <button class="chip-x" onclick="removeSetupPlayer(${p.id})" aria-label="Remove ${escapeHtml(p.name)}">×</button></li>`).join('') || '<li class="empty">No one yet — add at least three names.</li>'}
+        ${state.setupPlayers.map((p,i)=>`<li><input class="player-name-input" type="text" value="${escapeHtml(p.name)}" placeholder="Player ${i+1}" oninput="renamePlayer(${p.id}, this.value)" aria-label="Name for player ${i+1}"> <button class="chip-x" onclick="removeSetupPlayer(${p.id})" aria-label="Remove player ${i+1}">×</button></li>`).join('') || '<li class="empty">Use the stepper above to add players.</li>'}
       </ul>
       ${n>0 ? `<button class="link-btn" onclick="clearPlayers()">Clear all</button>` : ''}
 
