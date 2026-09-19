@@ -341,7 +341,8 @@
       freudResult:null,
       currentAnswer:null,
       winner:null,
-      winReason:''
+      winReason:'',
+      lastSpecialIds:[]
     };
   }
   let state = defaultState();
@@ -423,22 +424,40 @@
   function setDifficulty(v){ state.difficulty=v; render(); }
 
   function dealRoles(){
-    const players = shuffle(state.setupPlayers).map(p=>({id:p.id, name:p.name, active:true}));
-    const roles=[];
-    for(let i=0;i<state.numInterns;i++) roles.push('intern');
-    if(state.includeFreud) roles.push('freud');
-    while(roles.length<players.length) roles.push('psychologist');
+    // Players stay in serial (setup) order so the phone always passes Player 1, Player 2, Player 3...
+    // Only the roles themselves are shuffled and dealt onto that fixed order.
+    const players = state.setupPlayers.map(p=>({id:p.id, name:p.name, active:true}));
+    const specialSlots = state.numInterns + (state.includeFreud?1:0);
+    const roleTypes=[];
+    for(let i=0;i<state.numInterns;i++) roleTypes.push('intern');
+    if(state.includeFreud) roleTypes.push('freud');
+
+    // Randomly pick who gets a special role this time. Prefer players who
+    // did NOT have a special role last game, so it doesn't keep landing on
+    // the same person — but if the room's too small for that, fall back to
+    // picking from everyone so it's still fully random rather than stuck.
+    let pool = players.filter(p=>!state.lastSpecialIds.includes(p.id));
+    if(pool.length < specialSlots) pool = players.slice();
+    const specialPlayers = shuffle(pool).slice(0, specialSlots);
+    const specialIds = new Set(specialPlayers.map(p=>p.id));
+    const shuffledRoleTypes = shuffle(roleTypes);
+
+    let ri = 0;
+    players.forEach(p=>{
+      p.role = specialIds.has(p.id) ? shuffledRoleTypes[ri++] : 'psychologist';
+    });
+
     const pair = pickPair(state.difficulty);
     const dir = Math.random()<0.5;
     const psychWord = dir? pair.a : pair.b;
     const internWord = dir? pair.b : pair.a;
-    players.forEach((p,i)=>{
-      p.role = roles[i];
+    players.forEach(p=>{
       p.word = p.role==='psychologist'? psychWord : (p.role==='intern'? internWord : null);
     });
     state.players = players;
     state.currentAnswer = psychWord;
     state.turnOrder = shuffle(players).map(p=>p.id);
+    state.lastSpecialIds = Array.from(specialIds);
     state.round = 1;
     state.revealIndex = 0;
     state.winner = null;
@@ -616,14 +635,12 @@
   }
 
   function screenClues(){
-    const order = state.clueOrder;
+    const starter = state.clueOrder[0];
     return `
       <p class="eyebrow-line">Round ${state.round}</p>
-      <h2 class="section-title">Speak in this order</h2>
-      <ol class="order-list">
-        ${order.map(p=>`<li>${escapeHtml(p.name)}</li>`).join('')}
-      </ol>
-      <p class="hint">One clue each, out loud. No repeats, no gestures, no saying the word.</p>
+      <h2 class="section-title">Who starts?</h2>
+      <p class="pass-name">${escapeHtml(starter.name)}</p>
+      <p class="hint">They go first with one clue, out loud — then continue around the room. No repeats, no gestures, no saying the word.</p>
       <button class="btn primary" onclick="goToVote()">Everyone's spoken → vote</button>
     `;
   }
